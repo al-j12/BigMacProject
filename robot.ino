@@ -44,7 +44,7 @@ const int cArmServoUp = 2200;                                                  /
 const int cArmServoDown = 1300;                                                // Value for shoulder of arm fully down
 const int cLeftAdjust = 0;                                                     // Amount to slow down left motor relative to right
 const int cRightAdjust = 10;                                                    // Amount to slow down right motor relative to left
-int a = 0;
+
 //
 //=====================================================================================================================
 
@@ -106,7 +106,7 @@ int turned_amount;                                                             /
 boolean timeUp500msec = false;                                                 // 500 millisecond timer elapsed flag
 unsigned long timerCount500msec = 0;                                           // 500 millisecond timer count in milliseconds
 int iteration = 0;                                                             // for smoothing arm raise
-
+int a =0;
 void setup() {
 #if defined DEBUG_DRIVE_SPEED || DEBUG_ENCODER_COUNT
    Serial.begin(115200);
@@ -247,6 +247,7 @@ void loop() {
               Serial.print(F(", mapped = "));
               Serial.println(leftDriveSpeed);
 #endif
+
 #ifdef DEBUG_ENCODER_COUNT
               if (timeUp200msec) {
                 timeUp200msec = false;                                       // reset 200 ms timer
@@ -263,55 +264,60 @@ void loop() {
                
             switch(pingPongFinder) {
 
-              //need to first go forward across 1 and a half sheets of paper
-               
-              case 0:
-
-                                       // update shoulder servo position
+               case 0:
 
                 Serial.print("case 0 start");
 
                 //move forward
 
-                while(a < 3){
+                while(a < 3 &&  pingPongFinder == 0){
+
+                   LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                 RightEncoder.getEncoderRawCount();
+
+
                 Bot.Forward("D1",leftDriveSpeed, rightDriveSpeed);  
                 
-                if (LeftEncoder.lRawEncoderCount >= 3000)             //Distance need be adjust
+                if (LeftEncoder.lRawEncoderCount >= 30000)             //Distance need be adjust
                 {                                
                   Serial.print("foward end");
                   Bot.Stop("D1");
                     Serial.print("start - turn 90 CCW");
               
-                  while(LeftEncoder.lRawEncoderCount >= 2600)
+                  while(LeftEncoder.lRawEncoderCount >= 29200)
                   {
+                    LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                   RightEncoder.getEncoderRawCount(); 
+
+
                       //rotate to the left (CCW)
                       Bot.Left("D1",200, 200);
                       
-                      if (LeftEncoder.lRawEncoderCount == 2610){                                
+                      if (LeftEncoder.lRawEncoderCount == 29300){                                
                         Serial.print("left turn finish");
                         
                         a++;
             
                 }
-
+                       
                 }
                          pingPongFinder = 1;  
+                         break;
                        
                 }
                 
-               
+                 
                 }
 
                 if(a>=3)
                 {
-
                   pingPongFinder = 2;
                 }
                 break;
 
               // rotate 90 degrees CCW
               case 1:
-               
+               Serial.print("case 1 start");
                LeftEncoder.lRawEncoderCount  = 0;
               pingPongFinder = 0;
 
@@ -323,21 +329,32 @@ void loop() {
 
                 //move foward on second cyclce
 
-                while(a < 3){
+                while(a < 3 && pingPongFinder == 2 )
+                {
+                
+                LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                RightEncoder.getEncoderRawCount();
+
+
                 Bot.Forward("D1",leftDriveSpeed, rightDriveSpeed);  
                 
-                if (LeftEncoder.lRawEncoderCount >= 2000)             //Distance need be adjust
+                if (LeftEncoder.lRawEncoderCount >= 20000)             //Distance need be adjust
                 {                                
                   Serial.print("foward end");
                   Bot.Stop("D1");
                     Serial.print("start - turn 90 CCW");
               
-                  while(LeftEncoder.lRawEncoderCount >= 1600)
+                  while(LeftEncoder.lRawEncoderCount >= 19200)
                   {
+                    
+                    LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                    RightEncoder.getEncoderRawCount();
+
+
                       //rotate to the left (CCW)
                       Bot.Left("D1",200, 200);
                       
-                      if (LeftEncoder.lRawEncoderCount == 1610){                                
+                      if (LeftEncoder.lRawEncoderCount == 19300){                                
                         Serial.print("left turn finish");
                         
                         a++;
@@ -345,7 +362,8 @@ void loop() {
                 }
 
                 }
-                         pingPongFinder = 3;  
+                         pingPongFinder = 3;
+                         break;  
                        
                 }
                 
@@ -364,14 +382,9 @@ void loop() {
               case 3:
                  
                LeftEncoder.lRawEncoderCount  = 0;
-              pingPongFinder = 2;
-
-                
-
+                pingPongFinder = 2;
                 break;
 
-            
-               
               case 4:
                 //stop robot
                 Bot.Stop("D1");
@@ -380,10 +393,10 @@ void loop() {
                 robotModeIndex = 0; //  back to 0
 
                 break;
-
+               
+               
               }
            
-          
 
       }
 
