@@ -4,12 +4,12 @@
 #include <Adafruit_NeoPixel.h>
 #include <MSE2202_Lib.h>
 
-// function declarations
+// Function declarations
 void Indicator();                                                              // for mode/heartbeat on Smart LED
 
-// port pin constants
+// Port pin constants
 #define LEFT_MOTOR_A        41                                                 // GPIO35 pin 28 (J35) Motor 1 A
-#define LEFT_MOTOR_B        42                                                 // GPIO36 pin 29 (J36) Motor 1 B
+#define LEFT_MOTOR_B        42                                                // GPIO36 pin 29 (J36) Motor 1 B
 #define RIGHT_MOTOR_A       47                                                 // GPIO37 pin 30 (J37) Motor 2 A
 #define RIGHT_MOTOR_B       48                                                 // GPIO38 pin 31 (J38) Motor 2 B
 #define ENCODER_LEFT_A      15                                                 // left encoder A signal is connected to pin 8 GPIO15 (J15)
@@ -21,27 +21,26 @@ void Indicator();                                                              /
 #define POT_R1              1                                                  // when DIP Switch S1-3 is on, Analog AD0 (pin 39) GPIO1 is connected to Poteniometer R1
 #define SMART_LED           21                                                 // when DIP Switch S1-4 is on, Smart LED is connected to pin 23 GPIO21 (J21)
 #define SMART_LED_COUNT     1                                                  // number of SMART LEDs in use
-#define BLOCK_SERVO         43                                                 // GPIO43
-#define SORTING_SERVO       36                                                 // GPIO36
-#define RELEASE_SERVO       45                                                 // GPIO45
+#define IR_DETECTOR         14                                                 // GPIO14 pin 17 (J14) IR detector input
 
-// constants
+// Constants
 const int cDisplayUpdate = 100;                                                // update interval for Smart LED in milliseconds
 const int cPWMRes = 8;                                                         // bit resolution for PWM
 const int cMinPWM = 150;                                                       // PWM value for minimum speed that turns motor
 const int cMaxPWM = pow(2, cPWMRes) - 1;                                       // PWM value for maximum speed
 
-const int SortingServoGreen = 1100;                                            // value for open position of green sorting section
-const int SortingServoOther = 2050;                                            // value for closed position of other colours sorting section
-const int BlockServoUp = 2200;                                                 // value for blocking gate fully up
-const int BlockServoDown = 1300;                                               // value for blocking gate fully down
-const int ReleaseServoOpen = 1100;                                             // value for opening back gate
-const int ReleaseServoClosed = 2200;                                           // value for closing back gate
+//=====================================================================================================================
+//
+// IMPORTANT: The constants in this section need to be set to appropriate values for your robot. 
+//            You will have to experiment to determine appropriate values.
 
-const int cLeftAdjust = 0;                                                     // amount to slow down left motor relative to right
-const int cRightAdjust = 10;                                                   // amount to slow down right motor relative to left
+const int cLeftAdjust = 0;                                                     // Amount to slow down left motor relative to right
+const int cRightAdjust = 10;                                                    // Amount to slow down right motor relative to left
 
-// variables
+//
+//=====================================================================================================================
+
+// Variables
 boolean motorsEnabled = true;                                                  // motors enabled flag
 boolean timeUp3sec = false;                                                    // 3 second timer elapsed flag
 boolean timeUp2sec = false;                                                    // 2 second timer elapsed flag
@@ -75,19 +74,21 @@ unsigned char LEDBrightnessLevels[] = {5,15,30,45,60,75,90,105,120,135,150,165,1
 
 unsigned int  robotModeIndex = 0;                                              // robot operational state                              
 unsigned int  modeIndicator[6] = {                                             // colours for different modes
-   SmartLEDs.Color(255,0,0),                                                   // red - stop
-   SmartLEDs.Color(0,255,0),                                                   // green - run
-   SmartLEDs.Color(0,0,255),                                                   // blue - empty case
-   SmartLEDs.Color(255,255,0),                                                 // yellow - empty case
-   SmartLEDs.Color(0,255,255),                                                 // cyan - empty case
-   SmartLEDs.Color(255,0,255)                                                  // magenta - empty case
+   SmartLEDs.Color(255,0,0),                                                   //   red - stop
+   SmartLEDs.Color(0,255,0),                                                   //   green - run
+   SmartLEDs.Color(0,0,255),                                                   //   blue - empty case
+   SmartLEDs.Color(255,255,0),                                                 //   yellow - empty case
+   SmartLEDs.Color(0,255,255),                                                 //   cyan - empty case
+   SmartLEDs.Color(255,0,255)                                                  //   magenta - empty case
 };                                                                            
 
-// classes defined in MSE2202_Lib
-Motion Bot = Motion();                                                         // instance of Motion for motor control
-Encoders LeftEncoder = Encoders();                                             // instance of Encoders for left encoder data
-Encoders RightEncoder = Encoders();                                            // instance of Encoders for right encoder data
+// Motor, encoder, and IR objects (classes defined in MSE2202_Lib)
+Motion Bot = Motion();                                                         // Instance of Motion for motor control
+Encoders LeftEncoder = Encoders();                                             // Instance of Encoders for left encoder data
+Encoders RightEncoder = Encoders();                                            // Instance of Encoders for right encoder data
+IR Scan = IR();                                                                // instance of IR for detecting IR signals
 
+ 
 unsigned char pingPongFinder;                                                  // state index for ping pong ball finding mode
 unsigned long timerCount5sec = 0;                                              // 5 second timer count in milliseconds
 boolean timeUp5sec = false;                                                    // 5 second timer elapsed flag
@@ -95,20 +96,18 @@ int turned_amount;                                                             /
 boolean timeUp500msec = false;                                                 // 500 millisecond timer elapsed flag
 unsigned long timerCount500msec = 0;                                           // 500 millisecond timer count in milliseconds
 int iteration = 0;                                                             // for smoothing arm raise
-
+int a =0;
 void setup() {
 #if defined DEBUG_DRIVE_SPEED || DEBUG_ENCODER_COUNT
    Serial.begin(115200);
 #endif
    
   // Set up motors and encoders
-   Bot.driveBegin("D1", LEFT_MOTOR_A, LEFT_MOTOR_B, RIGHT_MOTOR_A, RIGHT_MOTOR_B);   // set up motors as Drive 1
-   Bot.servoBegin("S1", SORTING_SERVO);                                              // set up sorting servo
-   Bot.servoBegin("S2", BLOCK_SERVO);                                                // set up blocking servo
-   Bot.servoBegin("S3", RELEASE_SERVO);                                              // set up release servo
-   
-   LeftEncoder.Begin(ENCODER_LEFT_A, ENCODER_LEFT_B, &Bot.iLeftMotorRunning );       // set up left encoder
-   RightEncoder.Begin(ENCODER_RIGHT_A, ENCODER_RIGHT_B, &Bot.iRightMotorRunning );   // set up right encoder
+   Bot.driveBegin("D1", LEFT_MOTOR_A, LEFT_MOTOR_B, RIGHT_MOTOR_A, RIGHT_MOTOR_B); // set up motors as Drive 1
+   LeftEncoder.Begin(ENCODER_LEFT_A, ENCODER_LEFT_B, &Bot.iLeftMotorRunning ); // set up left encoder
+   RightEncoder.Begin(ENCODER_RIGHT_A, ENCODER_RIGHT_B, &Bot.iRightMotorRunning ); // set up right encoder
+ 
+   Scan.Begin(IR_DETECTOR, 1200);                                              //set up IR Detection @ 1200 baud
   
    // Set up SmartLED
    SmartLEDs.begin();                                                          // initialize smart LEDs object (REQUIRED)
@@ -191,7 +190,7 @@ void loop() {
          }
          else {
             modePBDebounce = modePBDebounce + 1;                               // increment debounce timer count
-            if(modePBDebounce >= 1025) {                                       // if pushbutton was released for 25 ms
+            if(modePBDebounce >= 1025) {                                       // if pushbutton was released for 25 mS
                modePBDebounce = 0;                                             // reset debounce timer count
                robotModeIndex++;                                               // switch to next mode
                robotModeIndex = robotModeIndex & 7;                            // keep mode index between 0 and 7
@@ -203,14 +202,22 @@ void loop() {
   
       // check if drive motors should be powered
       motorsEnabled = !digitalRead(MOTOR_ENABLE_SWITCH);                       // if SW1-1 is on (low signal), then motors are enabled
- 
+
+      // modes 
+      // 0 = Default after power up/reset. Robot is stopped.
+      // 1 = Press mode button once to enter.        Run robot
+      // 2 = Press mode button twice to enter.       Test IR receiver 
+      // 3 = Press mode button three times to enter. Test claw servo 
+      // 4 = Press mode button four times to enter.  Test shoulder servo 
+      // 5 = Press mode button five times to enter.  Add your code to do something 
+      // 6 = Press mode button six times to enter.   Add your code to do something 
       switch(robotModeIndex) {
          case 0: // Robot stopped
             Bot.Stop("D1");    
-            // LeftEncoder.clearEncoder();                                     // clear encoder counts
+            // LeftEncoder.clearEncoder();                                        // clear encoder counts
             // RightEncoder.clearEncoder();
             driveIndex = 0;
-            pingPongFinder = 0;                                                // reset drive index
+            pingPongFinder = 0;                                                    // reset drive index
             timeUp2sec = false;                                                // reset 2 second timer
             break;
 
@@ -228,6 +235,7 @@ void loop() {
               Serial.print(F(", mapped = "));
               Serial.println(leftDriveSpeed);
 #endif
+
 #ifdef DEBUG_ENCODER_COUNT
               if (timeUp200msec) {
                 timeUp200msec = false;                                       // reset 200 ms timer
@@ -244,27 +252,140 @@ void loop() {
                
             switch(pingPongFinder) {
 
-              //need to first go forward across 1 and a half sheets of paper
-               
-              case 0:
+               case 0:
 
-                //start arm up
-                 
                 Serial.print("case 0 start");
-                Bot.ToPosition("S1", SortingServoGreen);                      // update sorting servo position
-                Bot.ToPosition("S2", BlockServoUp);                           // update block servo position
-                Bot.ToPosition("S3", ReleaseServoOpen);                       // update release servo position
 
-                Bot.ToPosition("S1", SortingServoOther);                      // update sorting servo position
-                Bot.ToPosition("S2", BlockServoDown);                         // update block servo position
-                Bot.ToPosition("S3", ReleaseServoClosed);                     // update release servo position
                 //move forward
-                  
-                    timeUp2sec = false;                                       // reset 2 second timer
-                    timeUp500msec = false;                                    // reset 500ms second timer
+
+                while(a < 3 &&  pingPongFinder == 0){
+
+                   LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                 RightEncoder.getEncoderRawCount();
+
+
+                Bot.Forward("D1",leftDriveSpeed, rightDriveSpeed);  
                 
+                if (LeftEncoder.lRawEncoderCount >= 30000)             //Distance need be adjust
+                {                                
+                  Serial.print("foward end");
+                  Bot.Stop("D1");
+                    Serial.print("start - turn 90 CCW");
+              
+                  while(LeftEncoder.lRawEncoderCount >= 29200)
+                  {
+                    LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                   RightEncoder.getEncoderRawCount(); 
+
+
+                      //rotate to the left (CCW)
+                      Bot.Left("D1",200, 200);
+                      
+                      if (LeftEncoder.lRawEncoderCount == 29300){                                
+                        Serial.print("left turn finish");
+                        
+                        a++;
+            
+                }
+                       
+                }
+                         pingPongFinder = 1;  
+                         break;
+                       
+                }
+                
+                 
+                }
+
+                if(a>=3)
+                {
+                  pingPongFinder = 2;
+                }
                 break;
+
+              // rotate 90 degrees CCW
+              case 1:
+               Serial.print("case 1 start");
+               LeftEncoder.lRawEncoderCount  = 0;
+              pingPongFinder = 0;
+
+                break;
+
+              // go to the end of the next piece of paper
+              case 2:
+                 Serial.print("case 2 start");
+
+                //move foward on second cyclce
+
+                while(a < 3 && pingPongFinder == 2 )
+                {
+                
+                LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                RightEncoder.getEncoderRawCount();
+
+
+                Bot.Forward("D1",leftDriveSpeed, rightDriveSpeed);  
+                
+                if (LeftEncoder.lRawEncoderCount >= 20000)             //Distance need be adjust
+                {                                
+                  Serial.print("foward end");
+                  Bot.Stop("D1");
+                    Serial.print("start - turn 90 CCW");
+              
+                  while(LeftEncoder.lRawEncoderCount >= 19200)
+                  {
+                    
+                    LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                    RightEncoder.getEncoderRawCount();
+
+
+                      //rotate to the left (CCW)
+                      Bot.Left("D1",200, 200);
+                      
+                      if (LeftEncoder.lRawEncoderCount == 19300){                                
+                        Serial.print("left turn finish");
+                        
+                        a++;
+                  
+                }
+
+                }
+                         pingPongFinder = 3;
+                         break;  
+                       
+                }
+                
+                        
+                }
+
+                  if(a>=3)
+                    {
+
+                      pingPongFinder = 4;
+                    }
+
+                break;
+
+              //stop motion and find the ball
+              case 3:
+                 
+               LeftEncoder.lRawEncoderCount  = 0;
+                pingPongFinder = 2;
+                break;
+
+              case 4:
+                //stop robot
+                Bot.Stop("D1");
+                                             // update claw servo position
+
+                robotModeIndex = 0; //  back to 0
+
+                break;
+               
+               
               }
+           
+
       }
 
       // Update brightness of heartbeat display on SmartLED
