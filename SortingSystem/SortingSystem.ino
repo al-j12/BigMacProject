@@ -1,5 +1,7 @@
 #define PRINT_COLOUR                                  // uncomment to turn on output of colour sensor data
-
+#define RELEASE_SERVO              41                                                 // GPIO41 pin 34 (J41) Servo 1
+#define SORTING_SERVO              42                                                 // GPIO42 pin 35 (J42) Servo 2
+#define FIRST_SERVO                43   
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>
@@ -16,7 +18,12 @@ const int cSmartLEDCount     = 1;                     // number of Smart LEDs in
 const int cSDA               = 47;                    // GPIO pin for I2C data
 const int cSCL               = 48;                    // GPIO pin for I2C clock
 const int cTCSLED            = 14;                    // GPIO pin for LED on TCS34725
-const int cLEDSwitch         = 46;                    // DIP switch S1-2 controls LED on TCS32725    
+const int cLEDSwitch         = 46;                    // DIP switch S1-2 controls LED on TCS32725   
+
+const int ReleaseServoOpen = 1000;                                               // Value for open position of back gate
+const int ReleaseServoClosed = 2150;                                             // Value for closed position of back gate
+const int SortingServoUp = 2200;                                                  // Value for sorting gate fully up
+const int SortingServoDown = 1000;                                                // Value for sorting gaet fully down
 
 // Variables
 boolean heartbeatState       = true;                  // state of heartbeat LED
