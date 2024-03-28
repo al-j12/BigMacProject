@@ -88,7 +88,7 @@ Motion Bot = Motion();                                                         /
 Encoders LeftEncoder = Encoders();                                             // instance of Encoders for left encoder data
 Encoders RightEncoder = Encoders();                                            // instance of Encoders for right encoder data
 
-unsigned char pingPongFinder;                                                  // state index for ping pong ball finding mode
+unsigned char predefinedPath;                                                  // state index for ping pong ball finding mode
 unsigned long timerCount5sec = 0;                                              // 5 second timer count in milliseconds
 boolean timeUp5sec = false;                                                    // 5 second timer elapsed flag
 int turned_amount;                                                             // to record how much it turned when looking for the ball
@@ -210,7 +210,7 @@ void loop() {
             // LeftEncoder.clearEncoder();                                     // clear encoder counts
             // RightEncoder.clearEncoder();
             driveIndex = 0;
-            pingPongFinder = 0;                                                // reset drive index
+            predefinedPath = 0;                                                // reset drive index
             timeUp2sec = false;                                                // reset 2 second timer
             break;
 
@@ -242,7 +242,7 @@ void loop() {
 #endif
 
                
-            switch(pingPongFinder) {
+            switch(predefinedPath) {
 
               //need to first go forward across 1 and a half sheets of paper
                
