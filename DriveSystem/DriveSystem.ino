@@ -29,16 +29,8 @@ const int cPWMRes = 8;                                                         /
 const int cMinPWM = 150;                                                       // PWM value for minimum speed that turns motor
 const int cMaxPWM = pow(2, cPWMRes) - 1;                                       // PWM value for maximum speed
 
-//=====================================================================================================================
-//
-// IMPORTANT: The constants in this section need to be set to appropriate values for your robot. 
-//            You will have to experiment to determine appropriate values.
-
 const int cLeftAdjust = 0;                                                     // Amount to slow down left motor relative to right
 const int cRightAdjust = 10;                                                    // Amount to slow down right motor relative to left
-
-//
-//=====================================================================================================================
 
 // Variables
 boolean motorsEnabled = true;                                                  // motors enabled flag
