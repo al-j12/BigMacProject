@@ -30,6 +30,10 @@ void doHeartbeat();                                                             
 #define SORTING_SERVO       36                                                 // GPIO36
 #define RELEASE_SERVO       45                                                 // GPIO45
 
+// colour sensing constants
+#define COLOUR_THRESHOLD   500 // adjust threshold as needed
+#define GREEN_COLOUR       0x00FF00 // RGB value for green colour
+
 // constants
 const int cDisplayUpdate = 100;                                                // update interval for Smart LED in milliseconds
 const int cPWMRes = 8;                                                         // bit resolution for PWM
@@ -94,7 +98,10 @@ unsigned char LEDBrightnessLevels[] = {0, 0, 0, 5, 15, 30, 45, 60, 75, 90, 105, 
 // TCS34725 colour sensor with 2.4 ms integration time and gain of 4
 // see https://github.com/adafruit/Adafruit_TCS34725/blob/master/Adafruit_TCS34725.h for all possible values
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X);
-bool tcsFlag = 0;   
+bool tcsFlag = 0;  
+bool colourDetected = 0;
+bool greenDetected = 0;
+bool otherDetected = 0; 
 
 unsigned int  robotModeIndex = 0;                                              // robot operational state                              
 unsigned int  modeIndicator[6] = {                                             // colours for different modes
@@ -169,6 +176,36 @@ void loop() {
 #ifdef PRINT_COLOUR            
       Serial.printf("R: %d, G: %d, B: %d, C %d\n", r, g, b, c);
 #endif
+
+    //  check if colour is detected
+    if (c > COLOUR_THRESHOLD) {
+      colourDetected = 1;
+      if (g > r && g> b) {
+        greenDetected = 1;
+        otherDetected = 0;
+      }
+      else {
+        greenDetected = 0;
+        otherDetected = 1;
+      }
+    }
+
+    // when a colour is detected:
+    if (colourDetected) {
+      Bot.ToPosition("S2", BlockServoUp); // open block servo
+
+      // enable sorting servo based on the colour
+      if (greenDetected) {
+        Bot.ToPosition("S1", SortingServoGreen);
+      }
+      else if (otherDetected) {
+        Bot.ToPosition("S1", SortingServoOther);
+      }
+
+      if (greenDetected && otherDetected) {
+        Bot.ToPosition("S3", ReleaseServoOpen); // open the back gate if all colours are detected
+      }
+    }
   }
 
    long pos[] = {0, 0};                                                        // current motor positions
@@ -329,7 +366,7 @@ void loop() {
       }
    }
     doHeartbeat();                                      // update heartbeat LED
-}   
+}
 
 // update heartbeat LED
 void doHeartbeat() {
