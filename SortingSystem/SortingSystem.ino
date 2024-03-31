@@ -31,9 +31,9 @@ void doHeartbeat();  // for mode/heartbeat on Smart LED
 #define RELEASE_SERVO 45       // GPIO45
 
 // colour sensing constants
-#define COLOUR_THRESHOLD 500   // adjust threshold as needed
+#define COLOUR_THRESHOLD 30   // adjust threshold as needed
 #define GREEN_COLOUR 0x00FF00  // RGB value for green colour
-
+#define GREEN_COLOUR_THRESHOLD 50
 // constants
 const int cDisplayUpdate = 100;           // update interval for Smart LED in milliseconds
 const int cPWMRes = 8;                    // bit resolution for PWM
@@ -177,15 +177,17 @@ void loop() {
     Serial.printf("R: %d, G: %d, B: %d, C %d\n", r, g, b, c);
 #endif
 
+    int green = (GREEN_COLOUR >> 8) & 0xFF;
+
     //  check if colour is detected
     if (c > COLOUR_THRESHOLD) {
       colourDetected = 1;
-      if (g > r && g > b) {
-        greenDetected = 1;
-        otherDetected = 0;
+      if (abs(g - green) < GREEN_COLOUR_THRESHOLD && g > r && g > b) { // check for a dominant green component
+        greenDetected = true;
+        otherDetected = false;
       } else {
-        greenDetected = 0;
-        otherDetected = 1;
+        greenDetected = false;
+        otherDetected = true;
       }
     }
 
