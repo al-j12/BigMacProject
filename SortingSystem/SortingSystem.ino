@@ -179,33 +179,24 @@ void loop() {
 
     int green = (GREEN_COLOUR >> 8) & 0xFF;
 
-    //  check if colour is detected
-    if (c > COLOUR_THRESHOLD) {
-      colourDetected = 1;
-      if (abs(g - green) < GREEN_COLOUR_THRESHOLD && g > r && g > b) { // check for a dominant green component
+    //  check for a dominant greeen component
+      if (abs(g - green) < GREEN_COLOUR_THRESHOLD && g > r && g > b) { 
         greenDetected = true;
         otherDetected = false;
-      } else {
-        greenDetected = false;
-        otherDetected = true;
-      }
-    }
-
-    // when a colour is detected:
-    if (colourDetected) {
-      Bot.ToPosition("S2", BlockServoUp);  // open block servo
+      }     
 
       // enable sorting servo based on the colour
       if (greenDetected) {
+        Bot.ToPosition("S2", BlockServoUp);  // open block servo
         Bot.ToPosition("S1", SortingServoGreen);
       } else if (otherDetected) {
+        Bot.ToPosition("S2", BlockServoUp);  // open block servo
         Bot.ToPosition("S1", SortingServoOther);
       }
 
       if (greenDetected && otherDetected) {
         Bot.ToPosition("S3", ReleaseServoOpen);  // open the back gate if all colours are detected
       }
-    }
   }
 
   long pos[] = { 0, 0 };  // current motor positions
