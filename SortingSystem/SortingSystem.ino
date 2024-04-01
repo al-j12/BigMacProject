@@ -31,9 +31,9 @@ void doHeartbeat();  // for mode/heartbeat on Smart LED
 #define RELEASE_SERVO 45       // GPIO45
 
 // colour sensing constants
-#define COLOUR_THRESHOLD 30   // adjust threshold as needed
-#define GREEN_COLOUR 0x00FF00  // RGB value for green colour
-#define GREEN_COLOUR_THRESHOLD 50
+#define COLOUR_THRESHOLD 10   // adjust threshold as needed
+//#define GREEN_COLOUR 0x00FF00  // RGB value for green colour
+
 // constants
 const int cDisplayUpdate = 100;           // update interval for Smart LED in milliseconds
 const int cPWMRes = 8;                    // bit resolution for PWM
@@ -177,26 +177,37 @@ void loop() {
     Serial.printf("R: %d, G: %d, B: %d, C %d\n", r, g, b, c);
 #endif
 
-    int green = (GREEN_COLOUR >> 8) & 0xFF;
+    //  check if colour is detected
+    if (c > COLOUR_THRESHOLD) {
+      colourDetected = 1;
+      if (g > r && g > b) {
+        greenDetected = 1;
+        otherDetected = 0;
+      } else {
+        greenDetected = 0;
+        otherDetected = 1;
+      }
+    }
 
-    //  check for a dominant greeen component
-      if (abs(g - green) < GREEN_COLOUR_THRESHOLD && g > r && g > b) { 
-        greenDetected = true;
-        otherDetected = false;
-      }     
+    // when a colour is detected:
+    if (colourDetected) {
+      Serial.printf("colour is detected");
+      Bot.ToPosition("S2", BlockServoUp);  // open block servo
 
       // enable sorting servo based on the colour
       if (greenDetected) {
-        Bot.ToPosition("S2", BlockServoUp);  // open block servo
+        Serial.printf("it's green");
         Bot.ToPosition("S1", SortingServoGreen);
       } else if (otherDetected) {
-        Bot.ToPosition("S2", BlockServoUp);  // open block servo
+        Serial.printf("it's not green");
         Bot.ToPosition("S1", SortingServoOther);
       }
 
       if (greenDetected && otherDetected) {
+        Serial.printf("all done");
         Bot.ToPosition("S3", ReleaseServoOpen);  // open the back gate if all colours are detected
       }
+    }
   }
 
   long pos[] = { 0, 0 };  // current motor positions
