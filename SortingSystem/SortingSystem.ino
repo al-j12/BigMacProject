@@ -1,4 +1,3 @@
-#define DEBUG_ENCODER_COUNT 1
 #define PRINT_COLOUR  // uncomment to turn on output of colour sensor data
 
 #include <Arduino.h>
@@ -13,42 +12,28 @@
 void doHeartbeat();  // for mode/heartbeat on Smart LED
 
 // port pin constants
-#define LEFT_MOTOR_A 41        // GPIO35 pin 28 (J35) Motor 1 A
-#define LEFT_MOTOR_B 42        // GPIO36 pin 29 (J36) Motor 1 B
-#define RIGHT_MOTOR_A 47       // GPIO37 pin 30 (J37) Motor 2 A
-#define RIGHT_MOTOR_B 48       // GPIO38 pin 31 (J38) Motor 2 B
-#define ENCODER_LEFT_A 15      // left encoder A signal is connected to pin 8 GPIO15 (J15)
-#define ENCODER_LEFT_B 16      // left encoder B signal is connected to pin 8 GPIO16 (J16)
-#define ENCODER_RIGHT_A 11     // right encoder A signal is connected to pin 19 GPIO11 (J11)
-#define ENCODER_RIGHT_B 12     // right encoder B signal is connected to pin 20 GPIO12 (J12)
 #define MODE_BUTTON 0          // GPIO0  pin 27 for Push Button 1
 #define MOTOR_ENABLE_SWITCH 3  // DIP Switch S1-1 pulls Digital pin D3 to ground when on, connected to pin 15 GPIO3 (J3)
 #define POT_R1 1               // when DIP Switch S1-3 is on, Analog AD0 (pin 39) GPIO1 is connected to Poteniometer R1
 #define SMART_LED 21           // when DIP Switch S1-4 is on, Smart LED is connected to pin 23 GPIO21 (J21)
 #define SMART_LED_COUNT 1      // number of SMART LEDs in use
-#define BLOCK_SERVO 43         // GPIO43
+#define BLOCK_SERVO 39         // GPIO43
 #define SORTING_SERVO 36       // GPIO36
 #define RELEASE_SERVO 45       // GPIO45
 
 // colour sensing constants
-#define COLOUR_THRESHOLD 10   // adjust threshold as needed
+#define COLOUR_THRESHOLD 80   // adjust threshold as needed
 //#define GREEN_COLOUR 0x00FF00  // RGB value for green colour
 
 // constants
 const int cDisplayUpdate = 100;           // update interval for Smart LED in milliseconds
-const int cPWMRes = 8;                    // bit resolution for PWM
-const int cMinPWM = 150;                  // PWM value for minimum speed that turns motor
-const int cMaxPWM = pow(2, cPWMRes) - 1;  // PWM value for maximum speed
 
 const int SortingServoGreen = 1100;   // value for open position of green sorting section
 const int SortingServoOther = 2050;   // value for closed position of other colours sorting section
-const int BlockServoUp = 2200;        // value for blocking gate fully up
-const int BlockServoDown = 1300;      // value for blocking gate fully down
+const int BlockServoUp = 2050;        // value for blocking gate fully up
+const int BlockServoDown = 1100;      // value for blocking gate fully down
 const int ReleaseServoOpen = 1100;    // value for opening back gate
-const int ReleaseServoClosed = 2200;  // value for closing back gate
-
-const int cLeftAdjust = 0;    // amount to slow down left motor relative to right
-const int cRightAdjust = 10;  // amount to slow down right motor relative to left
+const int ReleaseServoClosed = 2050;  // value for closing back gate
 
 const int cHeartbeatInterval = 75;  // heartbeat update interval, in milliseconds
 const int cSmartLED = 21;           // when DIP switch S1-4 is on, SMART LED is connected to GPIO21
@@ -59,13 +44,10 @@ const int cTCSLED = 14;             // GPIO pin for LED on TCS34725
 const int cLEDSwitch = 46;          // DIP switch S1-2 controls LED on TCS32725
 
 // variables
-boolean motorsEnabled = true;         // motors enabled flag
 boolean timeUp3sec = false;           // 3 second timer elapsed flag
 boolean timeUp2sec = false;           // 2 second timer elapsed flag
 boolean timeUp200msec = false;        // 200 millisecond timer elapsed flag
-unsigned char leftDriveSpeed;         // motor drive speed (0-255)
-unsigned char rightDriveSpeed;        // motor drive speed (0-255)
-unsigned char driveIndex;             // state index for run mode
+
 unsigned int modePBDebounce;          // pushbutton debounce timer count
 unsigned long timerCount3sec = 0;     // 3 second timer count in milliseconds
 unsigned long timerCount2sec = 0;     // 2 second timer count in milliseconds
@@ -116,8 +98,6 @@ unsigned int modeIndicator[6] = {
 
 // classes defined in MSE2202_Lib
 Motion Bot = Motion();               // instance of Motion for motor control
-Encoders LeftEncoder = Encoders();   // instance of Encoders for left encoder data
-Encoders RightEncoder = Encoders();  // instance of Encoders for right encoder data
 
 unsigned char predefinedPath;         // state index for ping pong ball finding mode
 unsigned long timerCount5sec = 0;     // 5 second timer count in milliseconds
@@ -128,18 +108,12 @@ unsigned long timerCount500msec = 0;  // 500 millisecond timer count in millisec
 int iteration = 0;                    // for smoothing arm raise
 
 void setup() {
-#if defined DEBUG_DRIVE_SPEED || DEBUG_ENCODER_COUNT
   Serial.begin(115200);
-#endif
 
-  // Set up motors and encoders
-  Bot.driveBegin("D1", LEFT_MOTOR_A, LEFT_MOTOR_B, RIGHT_MOTOR_A, RIGHT_MOTOR_B);  // set up motors as Drive 1
+  // Set up motors
   Bot.servoBegin("S1", SORTING_SERVO);                                             // set up sorting servo
   Bot.servoBegin("S2", BLOCK_SERVO);                                               // set up blocking servo
   Bot.servoBegin("S3", RELEASE_SERVO);                                             // set up release servo
-
-  LeftEncoder.Begin(ENCODER_LEFT_A, ENCODER_LEFT_B, &Bot.iLeftMotorRunning);      // set up left encoder
-  RightEncoder.Begin(ENCODER_RIGHT_A, ENCODER_RIGHT_B, &Bot.iRightMotorRunning);  // set up right encoder
 
   // Set up SmartLED
   SmartLEDs.begin();                                     // initialize smart LEDs object
@@ -177,8 +151,12 @@ void loop() {
     Serial.printf("R: %d, G: %d, B: %d, C %d\n", r, g, b, c);
 #endif
 
+    colourDetected = 0;
+    Bot.ToPosition("S2", BlockServoDown); 
+    Serial.printf("colour is not detected");
+
     //  check if colour is detected
-    if (c > COLOUR_THRESHOLD) {
+    if (c < COLOUR_THRESHOLD) {
       colourDetected = 1;
       if (g > r && g > b) {
         greenDetected = 1;
@@ -209,15 +187,6 @@ void loop() {
       }
     }
   }
-
-  long pos[] = { 0, 0 };  // current motor positions
-  int pot = 0;
-  //  LeftEncoder.getEncoderRawCount();                            // read left encoder count
-  //   RightEncoder.getEncoderRawCount();
-  Serial.print("Left Encoder count = ");
-  Serial.print(LeftEncoder.lRawEncoderCount);
-  Serial.print(", Right Encoder count = ");
-  Serial.println(RightEncoder.lRawEncoderCount);  // raw ADC value from pot
 
   currentMicros = micros();                        // get current time in microseconds
   if ((currentMicros - previousMicros) >= 1000) {  // enter when 1 ms has elapsed
@@ -285,72 +254,6 @@ void loop() {
           timeUp3sec = false;                   // reset 3 second timer
         }
       }
-    }
-
-    // check if drive motors should be powered
-    motorsEnabled = !digitalRead(MOTOR_ENABLE_SWITCH);  // if SW1-1 is on (low signal), then motors are enabled
-
-    switch (robotModeIndex) {
-      case 0:  // Robot stopped
-        Bot.Stop("D1");
-        // LeftEncoder.clearEncoder();                                     // clear encoder counts
-        // RightEncoder.clearEncoder();
-        driveIndex = 0;
-        predefinedPath = 0;  // reset drive index
-        timeUp2sec = false;  // reset 2 second timer
-        break;
-
-      case 1:  // case for finding ping pong ball
-        // Read pot to update drive motor speed
-        pot = analogRead(POT_R1);
-        leftDriveSpeed = map(pot, 0, 4095, cMinPWM, cMaxPWM) - cLeftAdjust;
-        rightDriveSpeed = map(pot, 0, 4095, cMinPWM, cMaxPWM) - cRightAdjust;
-        //LeftEncoder.getEncoderRawCount();                            // read left encoder count
-        //RightEncoder.getEncoderRawCount();                           // read right encoder count
-
-#ifdef DEBUG_DRIVE_SPEED
-        Serial.print(F(" Left Drive Speed: Pot R1 = "));
-        Serial.print(pot);
-        Serial.print(F(", mapped = "));
-        Serial.println(leftDriveSpeed);
-#endif
-#ifdef DEBUG_ENCODER_COUNT
-        if (timeUp200msec) {
-          timeUp200msec = false;              // reset 200 ms timer
-          LeftEncoder.getEncoderRawCount();   // read left encoder count
-          RightEncoder.getEncoderRawCount();  // read right encoder count
-          Serial.print(F("Left Encoder count = "));
-          Serial.print(LeftEncoder.lRawEncoderCount);
-          Serial.print(F("  Right Encoder count = "));
-          Serial.print(RightEncoder.lRawEncoderCount);
-          Serial.print("\n");
-        }
-#endif
-
-
-        switch (predefinedPath) {
-
-            //need to first go forward across 1 and a half sheets of paper
-
-          case 0:
-
-            //start arm up
-
-            Serial.print("case 0 start");
-            Bot.ToPosition("S1", SortingServoGreen);  // update sorting servo position
-            Bot.ToPosition("S2", BlockServoUp);       // update block servo position
-            Bot.ToPosition("S3", ReleaseServoOpen);   // update release servo position
-
-            Bot.ToPosition("S1", SortingServoOther);   // update sorting servo position
-            Bot.ToPosition("S2", BlockServoDown);      // update block servo position
-            Bot.ToPosition("S3", ReleaseServoClosed);  // update release servo position
-                                                       //move forward
-
-            timeUp2sec = false;     // reset 2 second timer
-            timeUp500msec = false;  // reset 500ms second timer
-
-            break;
-        }
     }
 
     // Update brightness of heartbeat display on SmartLED
