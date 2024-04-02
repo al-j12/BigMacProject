@@ -22,7 +22,7 @@ void doHeartbeat();  // for mode/heartbeat on Smart LED
 #define RELEASE_SERVO 45       // GPIO45
 
 // colour sensing constants
-#define COLOUR_THRESHOLD 80   // adjust threshold as needed
+#define COLOUR_THRESHOLD 85   // adjust threshold as needed
 //#define GREEN_COLOUR 0x00FF00  // RGB value for green colour
 
 // constants
@@ -141,7 +141,6 @@ void setup() {
 }
 
 void loop() {
-
   uint16_t r, g, b, c;  // RGBC values from TCS34725
 
   digitalWrite(cTCSLED, !digitalRead(cLEDSwitch));  // turn on onboard LED if switch state is low (on position)
