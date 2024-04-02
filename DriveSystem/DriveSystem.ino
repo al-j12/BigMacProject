@@ -1,3 +1,5 @@
+
+//#define DEBUG_DRIVE_SPEED    1
 #define DEBUG_ENCODER_COUNT  1
 
 #include <Arduino.h>
@@ -12,8 +14,8 @@ void Indicator();                                                              /
 #define LEFT_MOTOR_B        42                                                // GPIO36 pin 29 (J36) Motor 1 B
 #define RIGHT_MOTOR_A       47                                                 // GPIO37 pin 30 (J37) Motor 2 A
 #define RIGHT_MOTOR_B       48                                                 // GPIO38 pin 31 (J38) Motor 2 B
-#define ENCODER_LEFT_A      15                                                 // left encoder A signal is connected to pin 8 GPIO15 (J15)
-#define ENCODER_LEFT_B      16                                                 // left encoder B signal is connected to pin 8 GPIO16 (J16)
+#define ENCODER_LEFT_A      16                                                 // left encoder A signal is connected to pin 8 GPIO15 (J15)
+#define ENCODER_LEFT_B      15                                                // left encoder B signal is connected to pin 8 GPIO16 (J16)
 #define ENCODER_RIGHT_A     11                                                 // right encoder A signal is connected to pin 19 GPIO11 (J11)
 #define ENCODER_RIGHT_B     12                                                 // right encoder B signal is connected to pin 20 GPIO12 (J12)
 #define MODE_BUTTON         0                                                  // GPIO0  pin 27 for Push Button 1
@@ -22,6 +24,8 @@ void Indicator();                                                              /
 #define SMART_LED           21                                                 // when DIP Switch S1-4 is on, Smart LED is connected to pin 23 GPIO21 (J21)
 #define SMART_LED_COUNT     1                                                  // number of SMART LEDs in use
 #define IR_DETECTOR         14                                                 // GPIO14 pin 17 (J14) IR detector input
+#define SHOULDER_SERVO      43                                                // GPIO41 pin 34 (J41) Servo 1
+#define CLAW_SERVO          36                                                 // GPIO42 pin 35 (J42) Servo 2
 
 // Constants
 const int cDisplayUpdate = 100;                                                // update interval for Smart LED in milliseconds
@@ -29,8 +33,17 @@ const int cPWMRes = 8;                                                         /
 const int cMinPWM = 150;                                                       // PWM value for minimum speed that turns motor
 const int cMaxPWM = pow(2, cPWMRes) - 1;                                       // PWM value for maximum speed
 
+//=====================================================================================================================
+//
+// IMPORTANT: The constants in this section need to be set to appropriate values for your robot. 
+//            You will have to experiment to determine appropriate values.
+
+ 
 const int cLeftAdjust = 0;                                                     // Amount to slow down left motor relative to right
-const int cRightAdjust = 10;                                                    // Amount to slow down right motor relative to left
+const int cRightAdjust = 0;                                                    // Amount to slow down right motor relative to left
+
+//
+//=====================================================================================================================
 
 // Variables
 boolean motorsEnabled = true;                                                  // motors enabled flag
@@ -41,6 +54,8 @@ unsigned char leftDriveSpeed;                                                  /
 unsigned char rightDriveSpeed;                                                 // motor drive speed (0-255)
 unsigned char driveIndex;                                                      // state index for run mode
 unsigned int modePBDebounce;                                                   // pushbutton debounce timer count
+unsigned int potClawSetpoint;                                                  // desired position of claw servo read from pot
+unsigned int potShoulderSetpoint;                                              // desired position of shoulder servo read from pot
 unsigned long timerCount3sec = 0;                                              // 3 second timer count in milliseconds
 unsigned long timerCount2sec = 0;                                              // 2 second timer count in milliseconds
 unsigned long timerCount200msec = 0;                                           // 200 millisecond timer count in milliseconds
@@ -48,15 +63,6 @@ unsigned long displayTime;                                                     /
 unsigned long previousMicros;                                                  // last microsecond count
 unsigned long currentMicros;                                                   // current microsecond count
 
-// Declare SK6812 SMART LED object
-//   Argument 1 = Number of LEDs (pixels) in use
-//   Argument 2 = ESP32 pin number 
-//   Argument 3 = Pixel type flags, add together as needed:
-//     NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//     NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//     NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//     NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-//     NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 Adafruit_NeoPixel SmartLEDs(SMART_LED_COUNT, SMART_LED, NEO_RGB + NEO_KHZ800);
 
 // smart LED brightness for heartbeat
@@ -96,10 +102,11 @@ void setup() {
    
   // Set up motors and encoders
    Bot.driveBegin("D1", LEFT_MOTOR_A, LEFT_MOTOR_B, RIGHT_MOTOR_A, RIGHT_MOTOR_B); // set up motors as Drive 1
+    
    LeftEncoder.Begin(ENCODER_LEFT_A, ENCODER_LEFT_B, &Bot.iLeftMotorRunning ); // set up left encoder
    RightEncoder.Begin(ENCODER_RIGHT_A, ENCODER_RIGHT_B, &Bot.iRightMotorRunning ); // set up right encoder
  
-   Scan.Begin(IR_DETECTOR, 1200);                                              //set up IR Detection @ 1200 baud
+    
   
    // Set up SmartLED
    SmartLEDs.begin();                                                          // initialize smart LEDs object (REQUIRED)
@@ -113,32 +120,25 @@ void setup() {
 }
 
 void loop() {
+
+ 
+
    long pos[] = {0, 0};                                                        // current motor positions
    int pot = 0;  
-  //  LeftEncoder.getEncoderRawCount();                            // read left encoder count 
-  //   RightEncoder.getEncoderRawCount();
-   Serial.print("Left Encoder count = ");
-   Serial.print(LeftEncoder.lRawEncoderCount);
-   Serial.print(", Right Encoder count = ");
-   Serial.println(RightEncoder.lRawEncoderCount);                                                              // raw ADC value from pot
+     
+   Serial.println(pingPongFinder);  
+    Serial.println(robotModeIndex);
+                                                              // raw ADC value from pot
 
    currentMicros = micros();                                                   // get current time in microseconds
    if ((currentMicros - previousMicros) >= 1000) {                             // enter when 1 ms has elapsed
       previousMicros = currentMicros;                                          // record current time in microseconds
 
       // 5 second timer, counts 5000 milliseconds
-      timerCount5sec = timerCount5sec + 1;                                     // increment 5 second timer count
-      if (timerCount5sec > 5000) {                                             // if 5 seconds have elapsed
-         timerCount5sec = 0;                                                   // reset 5 second timer count
-         timeUp5sec = true;                                                    // indicate that 5 seconds have elapsed
-      }
+       
 
       // 3 second timer, counts 3000 milliseconds
-      timerCount3sec = timerCount3sec + 1;                                     // increment 3 second timer count
-      if (timerCount3sec > 4000) {                                             // if 3 seconds have elapsed
-         timerCount3sec = 0;                                                   // reset 3 second timer count
-         timeUp3sec = true;                                                    // indicate that 3 seconds have elapsed
-      }
+       
    
       // 2 second timer, counts 2000 milliseconds
       timerCount2sec = timerCount2sec + 1;                                     // increment 2 second timer count
@@ -155,13 +155,7 @@ void loop() {
          timeUp200msec = true;                                                 // Indicate that 200 milliseconds have elapsed
       }
 
-      // 500 millisecond timer, counts 500 milliseconds
-      timerCount500msec = timerCount500msec + 1;                               // Increment 500 millisecond timer count
-      if(timerCount500msec > 500)                                              // If 500 milliseconds have elapsed
-      {
-         timerCount500msec = 0;                                                // Reset 500 millisecond timer count
-         timeUp500msec = true;                                                 // Indicate that 500 milliseconds have elapsed
-      }
+       
 
       // Mode pushbutton debounce and toggle
       if (!digitalRead(MODE_BUTTON)) {                                         // if pushbutton GPIO goes LOW (nominal push)
@@ -195,15 +189,11 @@ void loop() {
       // check if drive motors should be powered
       motorsEnabled = !digitalRead(MOTOR_ENABLE_SWITCH);                       // if SW1-1 is on (low signal), then motors are enabled
 
-      // modes 
-      // 0 = Default after power up/reset. Robot is stopped.
-      // 1 = Press mode button once to enter.        Run robot
-      // 2 = Press mode button twice to enter.       Test IR receiver 
-      // 3 = Press mode button three times to enter. Test claw servo 
-      // 4 = Press mode button four times to enter.  Test shoulder servo 
-      // 5 = Press mode button five times to enter.  Add your code to do something 
-      // 6 = Press mode button six times to enter.   Add your code to do something 
+       
       switch(robotModeIndex) {
+
+
+
          case 0: // Robot stopped
             Bot.Stop("D1");    
             // LeftEncoder.clearEncoder();                                        // clear encoder counts
@@ -233,9 +223,9 @@ void loop() {
                 timeUp200msec = false;                                       // reset 200 ms timer
                 LeftEncoder.getEncoderRawCount();                            // read left encoder count 
                 RightEncoder.getEncoderRawCount();                           // read right encoder count
-                Serial.print(F("Left Encoder count = "));
+                Serial.print(F("Left Encoder count!!!!!!!!!! = "));
                 Serial.print(LeftEncoder.lRawEncoderCount);
-                Serial.print(F("  Right Encoder count = "));
+                Serial.print(F("  Right Encoder count!!!!!!!! = "));
                 Serial.print(RightEncoder.lRawEncoderCount);
                 Serial.print("\n");
               }
@@ -244,111 +234,162 @@ void loop() {
                
             switch(pingPongFinder) {
 
+             
+
                case 0:
 
                 Serial.print("case 0 start");
 
                 //move forward
-
+               
                 while(a < 3 &&  pingPongFinder == 0){
 
-                   LeftEncoder.getEncoderRawCount();                            // read left encoder count 
-                 RightEncoder.getEncoderRawCount();
 
+
+                   currentMicros = micros();                                                   // get current time in microseconds
+                    if ((currentMicros - previousMicros) >= 1000) {                             // enter when 1 ms has elapsed
+                    previousMicros = currentMicros; 
+
+                          timerCount200msec = timerCount200msec + 1;                               // Increment 200 millisecond timer count
+                          if(timerCount200msec > 200)                                              // If 200 milliseconds have elapsed
+                               {
+                                     timerCount200msec = 0;                                                // Reset 200 millisecond timer count
+                                    timeUp200msec = true;                                                 // Indicate that 200 milliseconds have elapsed
+                                 }
+
+                    }
+
+                  if(timeUp200msec)
+                {
+                  timeUp200msec == false;
+
+                   LeftEncoder.getEncoderRawCount();                            // read left encoder count 
+                  RightEncoder.getEncoderRawCount();
+                  Serial.print(F("Left Encoder count = "));
+                 Serial.println(LeftEncoder.lRawEncoderCount);
 
                 Bot.Forward("D1",leftDriveSpeed, rightDriveSpeed);  
                 
-                if (LeftEncoder.lRawEncoderCount >= 30000)             //Distance need be adjust
+                if (LeftEncoder.lRawEncoderCount >= 10000)             //Distance need be adjust
                 {                                
                   Serial.print("foward end");
                   Bot.Stop("D1");
                     Serial.print("start - turn 90 CCW");
+
               
-                  while(LeftEncoder.lRawEncoderCount >= 29200)
+                  while(LeftEncoder.lRawEncoderCount >= 9000)
                   {
                     LeftEncoder.getEncoderRawCount();                            // read left encoder count 
                    RightEncoder.getEncoderRawCount(); 
-
+                   Serial.print(F("Left Encoder count = "));
+                Serial.println(LeftEncoder.lRawEncoderCount);
 
                       //rotate to the left (CCW)
-                      Bot.Left("D1",200, 200);
+                      Bot.Left("D1",leftDriveSpeed, rightDriveSpeed);
                       
-                      if (LeftEncoder.lRawEncoderCount == 29300){                                
-                        Serial.print("left turn finish");
-                        
-                        a++;
-            
+                      
+                             
                 }
-                       
-                }
+                         a++;
                          pingPongFinder = 1;  
                          break;
                        
                 }
-                
-                 
+                               
+                          
                 }
+
+                    
+                }
+                
 
                 if(a>=3)
                 {
                   pingPongFinder = 2;
+                  a=0;
                 }
+
+                 
+
+
                 break;
 
               // rotate 90 degrees CCW
               case 1:
-               Serial.print("case 1 start");
-               LeftEncoder.lRawEncoderCount  = 0;
+              Bot.Stop("D1");
+               Serial.println("case 1 start");
+          
+                LeftEncoder.clearEncoder();                                        // clear encoder counts
+                RightEncoder.clearEncoder();
+
               pingPongFinder = 0;
+          
+                  
 
                 break;
 
               // go to the end of the next piece of paper
               case 2:
-                 Serial.print("case 2 start");
-
+                 Serial.print("case 2 start");            
                 //move foward on second cyclce
-
+                 
                 while(a < 3 && pingPongFinder == 2 )
                 {
+                     currentMicros = micros();                                                   // get current time in microseconds
+                    if ((currentMicros - previousMicros) >= 1000) {                             // enter when 1 ms has elapsed
+                    previousMicros = currentMicros; 
+
+                          timerCount200msec = timerCount200msec + 1;                               // Increment 200 millisecond timer count
+                          if(timerCount200msec > 200)                                              // If 200 milliseconds have elapsed
+                               {
+                                     timerCount200msec = 0;                                                // Reset 200 millisecond timer count
+                                    timeUp200msec = true;                                                 // Indicate that 200 milliseconds have elapsed
+                                 }
+
+                    }
+
+
+                  if(timeUp200msec)
+                {
+                  timeUp200msec == false;
                 
                 LeftEncoder.getEncoderRawCount();                            // read left encoder count 
                 RightEncoder.getEncoderRawCount();
-
+                 Serial.print(F("Left Encoder count = "));
+                 Serial.println(LeftEncoder.lRawEncoderCount);
 
                 Bot.Forward("D1",leftDriveSpeed, rightDriveSpeed);  
                 
-                if (LeftEncoder.lRawEncoderCount >= 20000)             //Distance need be adjust
+                if (LeftEncoder.lRawEncoderCount >= 9000)             //Distance need be adjust
                 {                                
                   Serial.print("foward end");
                   Bot.Stop("D1");
                     Serial.print("start - turn 90 CCW");
               
-                  while(LeftEncoder.lRawEncoderCount >= 19200)
+                
+                  while(LeftEncoder.lRawEncoderCount >= 8000)
                   {
                     
                     LeftEncoder.getEncoderRawCount();                            // read left encoder count 
                     RightEncoder.getEncoderRawCount();
-
+                      Serial.print(F("Left Encoder count = "));
+                Serial.println(LeftEncoder.lRawEncoderCount);
 
                       //rotate to the left (CCW)
-                      Bot.Left("D1",200, 200);
+                      Bot.Left("D1",leftDriveSpeed, rightDriveSpeed);
                       
-                      if (LeftEncoder.lRawEncoderCount == 19300){                                
-                        Serial.print("left turn finish");
-                        
-                        a++;
-                  
+                      
+                            
                 }
-
-                }
+                         a++;
                          pingPongFinder = 3;
                          break;  
                        
                 }
                 
-                        
+                     
                 }
+            }
 
                   if(a>=3)
                     {
@@ -360,8 +401,10 @@ void loop() {
 
               //stop motion and find the ball
               case 3:
-                 
-               LeftEncoder.lRawEncoderCount  = 0;
+                 Bot.Stop("D1");
+                LeftEncoder.clearEncoder();                                        // clear encoder counts
+               RightEncoder.clearEncoder();
+                
                 pingPongFinder = 2;
                 break;
 
