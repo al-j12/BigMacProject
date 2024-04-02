@@ -28,10 +28,10 @@ void doHeartbeat();  // for mode/heartbeat on Smart LED
 // constants
 const int cDisplayUpdate = 100;           // update interval for Smart LED in milliseconds
 
-const int SortingServoGreen = 1100;   // value for open position of green sorting section
-const int SortingServoOther = 2050;   // value for closed position of other colours sorting section
-const int BlockServoUp = 2050;        // value for blocking gate fully up
-const int BlockServoDown = 1100;      // value for blocking gate fully down
+const int SortingServoGreen = 2050;   // value for open position of green sorting section
+const int SortingServoOther = 1100;   // value for closed position of other colours sorting section
+const int BlockServoUp = 1100;        // value for blocking gate fully up
+const int BlockServoDown = 2050;      // value for blocking gate fully down
 const int ReleaseServoOpen = 1100;    // value for opening back gate
 const int ReleaseServoClosed = 2050;  // value for closing back gate
 
