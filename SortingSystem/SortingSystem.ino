@@ -172,18 +172,25 @@ void loop() {
       Bot.ToPosition("S2", BlockServoUp);  // open block servo
 
       // enable sorting servo based on the colour
+       if(timeUp200msec)
+      {
+          timeUp200msec == false;
+      
       if (greenDetected) {
         Serial.printf("it's green");
         Bot.ToPosition("S1", SortingServoGreen);
-      } else if (otherDetected) {
+      }
+       else if (otherDetected) {
         Serial.printf("it's not green");
         Bot.ToPosition("S1", SortingServoOther);
+      }
       }
 
       if (greenDetected && otherDetected) {
         Serial.printf("all done");
         Bot.ToPosition("S3", ReleaseServoOpen);  // open the back gate if all colours are detected
       }
+      Bot.ToPosition("S2", BlockServoDown); 
     }
   }
 
