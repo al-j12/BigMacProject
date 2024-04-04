@@ -8,7 +8,6 @@
 #include "Adafruit_TCS34725.h"
 
 // function declarations
-// void Indicator();
 void doHeartbeat();  // for mode/heartbeat on Smart LED
 
 // port pin constants
@@ -21,12 +20,11 @@ void doHeartbeat();  // for mode/heartbeat on Smart LED
 #define SORTING_SERVO 36       // GPIO36
 #define RELEASE_SERVO 45       // GPIO45
 
-// colour sensing constants
-#define COLOUR_THRESHOLD 80   // adjust threshold as needed
-//#define GREEN_COLOUR 0x00FF00  // RGB value for green colour
+// colour sensing constant
+#define COLOUR_THRESHOLD 85  // adjust threshold as needed
 
 // constants
-const int cDisplayUpdate = 100;           // update interval for Smart LED in milliseconds
+const int cDisplayUpdate = 100;  // update interval for Smart LED in milliseconds
 
 const int SortingServoGreen = 2050;   // value for open position of green sorting section
 const int SortingServoOther = 1100;   // value for closed position of other colours sorting section
@@ -44,9 +42,9 @@ const int cTCSLED = 14;             // GPIO pin for LED on TCS34725
 const int cLEDSwitch = 46;          // DIP switch S1-2 controls LED on TCS32725
 
 // variables
-boolean timeUp3sec = false;           // 3 second timer elapsed flag
-boolean timeUp2sec = false;           // 2 second timer elapsed flag
-boolean timeUp200msec = false;        // 200 millisecond timer elapsed flag
+boolean timeUp3sec = false;     // 3 second timer elapsed flag
+boolean timeUp2sec = false;     // 2 second timer elapsed flag
+boolean timeUp200msec = false;  // 200 millisecond timer elapsed flag
 
 unsigned int modePBDebounce;          // pushbutton debounce timer count
 unsigned long timerCount3sec = 0;     // 3 second timer count in milliseconds
@@ -97,7 +95,7 @@ unsigned int modeIndicator[6] = {
 };
 
 // classes defined in MSE2202_Lib
-Motion Bot = Motion();               // instance of Motion for motor control
+Motion Bot = Motion();  // instance of Motion for motor control
 
 unsigned char predefinedPath;         // state index for ping pong ball finding mode
 unsigned long timerCount5sec = 0;     // 5 second timer count in milliseconds
@@ -111,9 +109,9 @@ void setup() {
   Serial.begin(115200);
 
   // Set up motors
-  Bot.servoBegin("S1", SORTING_SERVO);                                             // set up sorting servo
-  Bot.servoBegin("S2", BLOCK_SERVO);                                               // set up blocking servo
-  Bot.servoBegin("S3", RELEASE_SERVO);                                             // set up release servo
+  Bot.servoBegin("S1", SORTING_SERVO);  // set up sorting servo
+  Bot.servoBegin("S2", BLOCK_SERVO);    // set up blocking servo
+  Bot.servoBegin("S3", RELEASE_SERVO);  // set up release servo
 
   // Set up SmartLED
   SmartLEDs.begin();                                     // initialize smart LEDs object
@@ -151,7 +149,8 @@ void loop() {
 #endif
 
     colourDetected = 0;
-    Bot.ToPosition("S2", BlockServoDown); 
+
+    Bot.ToPosition("S2", BlockServoDown);
     Serial.printf("colour is not detected");
 
     //  check if colour is detected
@@ -175,16 +174,45 @@ void loop() {
       if (greenDetected) {
         Serial.printf("it's green");
         Bot.ToPosition("S1", SortingServoGreen);
+
+        timeUp500msec = false;
+
+        while (!timeUp500msec) {
+          currentMicros = micros();                        // get current time in microseconds
+          if ((currentMicros - previousMicros) >= 1000) {  // enter when 1 ms has elapsed
+            previousMicros = currentMicros;                // record current time in microseconds
+            timerCount500msec = timerCount500msec + 1;     // Increment 500 millisecond timer count
+            if (timerCount500msec > 500)                   // If 500 milliseconds have elapsed
+            {
+              timerCount500msec = 0;  // Reset 500 millisecond timer count
+              timeUp500msec = true;   // Indicate that 500 milliseconds have elapsed
+            }
+          }
+        }
+
       } else if (otherDetected) {
         Serial.printf("it's not green");
         Bot.ToPosition("S1", SortingServoOther);
+        timeUp500msec = false;
+
+        while (!timeUp500msec) {
+          currentMicros = micros();                        // get current time in microseconds
+          if ((currentMicros - previousMicros) >= 1000) {  // enter when 1 ms has elapsed
+            previousMicros = currentMicros;                // record current time in microseconds
+            timerCount500msec = timerCount500msec + 1;     // Increment 500 millisecond timer count
+            if (timerCount500msec > 500)                   // If 500 milliseconds have elapsed
+            {
+              timerCount500msec = 0;  // Reset 500 millisecond timer count
+              timeUp500msec = true;   // Indicate that 500 milliseconds have elapsed
+            }
+          }
+        }
       }
 
       if (greenDetected && otherDetected) {
         Serial.printf("all done");
         Bot.ToPosition("S3", ReleaseServoOpen);  // open the back gate if all colours are detected
       }
-      delay(500);
     }
   }
 
