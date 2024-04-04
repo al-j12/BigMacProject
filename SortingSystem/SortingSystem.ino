@@ -22,7 +22,7 @@ void doHeartbeat();  // for mode/heartbeat on Smart LED
 #define RELEASE_SERVO 45       // GPIO45
 
 // colour sensing constants
-#define COLOUR_THRESHOLD 85   // adjust threshold as needed
+#define COLOUR_THRESHOLD 80   // adjust threshold as needed
 //#define GREEN_COLOUR 0x00FF00  // RGB value for green colour
 
 // constants
@@ -172,25 +172,19 @@ void loop() {
       Bot.ToPosition("S2", BlockServoUp);  // open block servo
 
       // enable sorting servo based on the colour
-       if(timeUp200msec)
-      {
-          timeUp200msec == false;
-      
       if (greenDetected) {
         Serial.printf("it's green");
         Bot.ToPosition("S1", SortingServoGreen);
-      }
-       else if (otherDetected) {
+      } else if (otherDetected) {
         Serial.printf("it's not green");
         Bot.ToPosition("S1", SortingServoOther);
-      }
       }
 
       if (greenDetected && otherDetected) {
         Serial.printf("all done");
         Bot.ToPosition("S3", ReleaseServoOpen);  // open the back gate if all colours are detected
       }
-      Bot.ToPosition("S2", BlockServoDown); 
+      delay(500);
     }
   }
 
